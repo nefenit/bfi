@@ -1,2 +1,2 @@
 # bfi
-Brainfuck interpreter
+> Brainfuck interpreter
