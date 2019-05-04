@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define PROGRAM_NAME         "factorial"
+#define PROGRAM_NAME         "bfi"
 #define PROGRAM_VERSION      "1.0"
 #define COPYRIGHT_YEAR       "2019"
 #define COPYRIGHT_HOLDER     "Bartosz Mierzynski"
