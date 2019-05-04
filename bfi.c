@@ -192,7 +192,6 @@ int main(int argc, char *argv[]) {
 	{NULL, 0, NULL, 0}
 	};
 
-
 	while ((c = getopt_long(argc, argv, "i:m:hv", longopts, NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -215,7 +214,6 @@ int main(int argc, char *argv[]) {
 	
 	argc -= optind;
 	argv += optind;
-	
 
 	for(;argc; --argc, ++argv){	
 		if(!(code = readcode(*argv, &code_size)))
