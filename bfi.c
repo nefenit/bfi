@@ -1,18 +1,58 @@
+#include <getopt.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#define PROGRAM_NAME         "factorial"
+#define PROGRAM_VERSION      "1.0"
+#define COPYRIGHT_YEAR       "2019"
+#define COPYRIGHT_HOLDER     "Bartosz Mierzynski"
+#define LICENSE_ABBREVIATION ""
+#define LICENSE_LINE         ""
+
 enum {DEFAULT_TAPE_SIZE = 30000};
+
+void usage(int status) {
+	printf(
+	"usage: %s [-m SIZE] [-i CODE]... FILE...\n"
+	"       %s --help\n"
+	"       %s --version\n"
+	"Brainfuck interpreter\n"
+	"Options:\n"
+	"  -m, --memory=SIZE\n"
+	"  -i, --interpret=CODE\n"
+	"  -h, --help\n"
+	"  -v, --version\n",
+	PROGRAM_NAME,
+	PROGRAM_NAME,
+	PROGRAM_NAME);
+	exit(status);
+}
+
+void version(const char* program_name, const char* program_version) {
+	printf("%s %s\n"
+	"Copyright (C) %s %s\n"
+	"License %s: %s\n"
+	"This is free software: you are free to change and redistribute it.\n"
+	"There is NO WARRANTY, to the extent permitted by law.\n",
+	program_name,
+	program_version,
+	COPYRIGHT_YEAR,
+	COPYRIGHT_HOLDER,
+	LICENSE_ABBREVIATION,
+	LICENSE_LINE);
+	exit(EXIT_SUCCESS);
+}
 
 char* readcode(char *filename, size_t *code_size) {
 	FILE *fp;
 	char *code;
 	int c, i;
-	
-	if(!(fp = fopen(filename, "rb"))){
+
+	if((fp = fopen(filename, "rb")) == NULL){
 		perror("fopen");
-		exit(EXIT_FAILURE);
+		return NULL;
 	}
 
 	*code_size = 0;
@@ -141,13 +181,47 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 }
 
 int main(int argc, char *argv[]) {
-	char   *code;
-	size_t  code_size;
+	int c;
+	char *code = NULL;
+	size_t code_size, tape_size = 0;
+	const struct option longopts[] = {
+	{"interpret",  required_argument, NULL, 'i'},
+	{"memory",     required_argument, NULL, 'm'},
+	{"help",       no_argument,       NULL, 'h'},
+	{"version",    no_argument,       NULL, 'v'},
+	{NULL, 0, NULL, 0}
+	};
 
-	if(!(code = readcode(argv[1], &code_size)))
-		return EXIT_FAILURE;
 
-	interpret(code, code_size, DEFAULT_TAPE_SIZE);
+	while ((c = getopt_long(argc, argv, "i:m:hv", longopts, NULL)) != -1) {
+		switch (c) {
+		case 'i':
+			interpret(optarg, strlen(optarg), tape_size ? tape_size : DEFAULT_TAPE_SIZE);
+			break;
+		case 'm':
+			tape_size = strtoul(optarg, NULL, 0);
+			break;
+		case 'h':
+			usage(EXIT_SUCCESS);
+			break;
+		case 'v':
+			version(PROGRAM_NAME, PROGRAM_VERSION);
+			break;
+		case '?':
+		default:
+			usage(EXIT_FAILURE);
+		}
+	}
+	
+	argc -= optind;
+	argv += optind;
+	
+
+	for(;argc; --argc, ++argv){	
+		if(!(code = readcode(*argv, &code_size)))
+			return EXIT_FAILURE;
+		interpret(code, code_size, tape_size ? tape_size : DEFAULT_TAPE_SIZE);
+	}
 
 	free(code);
 
