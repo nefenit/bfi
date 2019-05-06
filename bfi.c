@@ -1,3 +1,8 @@
+/* bfi.c - Brainfuck interpreter
+ * (c) Copyright 2019 Bartosz Mierzynski
+ * Written in ANSI C (C89)
+ */
+
 #include <getopt.h>
 #include <stdint.h>
 #include <stdio.h>
