@@ -139,7 +139,11 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 			putchar((int)tape[p]);
 			break;
 		case ',':
-			tape[p] = (uint8_t)getchar();
+			{
+				int c = getchar();
+				
+				tape[p] = (uint8_t)(c == EOF ? 0 : c);
+			}
 			break;
 		case '[':
 			{
@@ -147,8 +151,7 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 				
 				if(tape[p] == 0) {
 					openbrackets = 0;
-					++ip;
-					for(;ip < code_size; ++ip) {
+					for(++ip; ip < code_size; ++ip) {
 						if(code[ip] == ']' && openbrackets == 0)
 							break;
 						else if(code[ip] == '[')
@@ -165,8 +168,7 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 				
 				if(tape[p] != 0) {
 					closedbrackets = 0;
-					--ip;
-					for(;ip >= 0; --ip) {
+					for(--ip; ip >= 0; --ip) {
 						if(code[ip] == '[' && closedbrackets == 0)
 							break;
 						else if(code[ip] == ']')
