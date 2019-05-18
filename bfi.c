@@ -50,6 +50,21 @@ void version(const char* program_name, const char* program_version) {
 	exit(EXIT_SUCCESS);
 }
 
+int isinstruction(char c) {
+	switch(c) {
+	case '>':
+	case '<':
+	case '+':
+	case '-':
+	case '.':
+	case ',':
+	case '[':
+	case ']':
+		return 1;
+	}
+	return 0;
+}
+
 char* readcode(char *filename, size_t *code_size) {
 	FILE *fp;
 	char *code;
@@ -62,20 +77,9 @@ char* readcode(char *filename, size_t *code_size) {
 
 	*code_size = 0;
 
-	while((c = getc(fp)) != EOF) {
-		switch(c) {
-		case '>':
-		case '<':
-		case '+':
-		case '-':
-		case '.':
-		case ',':
-		case '[':
-		case ']':
+	while((c = getc(fp)) != EOF)
+		if(isinstruction(c))
 			++*code_size;
-			break;
-		}	
-	}
 
 	code = (char*)malloc(sizeof(char) * *code_size);
 
@@ -83,19 +87,9 @@ char* readcode(char *filename, size_t *code_size) {
 
 	i = 0;
 
-	while((c = getc(fp)) != EOF) {
-		switch(c) {
-		case '>':
-		case '<':
-		case '+':
-		case '-':
-		case '.':
-		case ',':
-		case '[':
-		case ']':
+	while((c = getc(fp)) != EOF)
+		if(isinstruction(c))
 			code[i++] = (char)c;
-		}	
-	}
 
 	fclose(fp);
 
