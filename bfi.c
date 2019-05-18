@@ -56,7 +56,7 @@ char* readcode(char *filename, size_t *code_size) {
 	int c, i;
 
 	if((fp = fopen(filename, "rb")) == NULL){
-		perror("fopen");
+		perror(filename);
 		return NULL;
 	}
 
