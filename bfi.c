@@ -28,9 +28,16 @@
 
 enum {DEFAULT_TAPE_SIZE = 30000};
 
+typedef enum {
+	EXTENDED_TYPE_0 = 0,
+	EXTENDED_TYPE_1 = 1<<1,
+	EXTENDED_TYPE_2 = 1<<2,
+	EXTENDED_TYPE_3 = 1<<3
+} extended_t;
+
 void usage(int status) {
 	printf(
-	"usage: %s [-x] [-m SIZE] [-i CODE]... FILE...\n"
+	"usage: %s [-x|-X] [-m SIZE] [-i CODE]... FILE...\n"
 	"       %s --help\n"
 	"       %s --version\n"
 	"Extended Brainfuck interpreter\n"
@@ -38,6 +45,7 @@ void usage(int status) {
 	"  -m, --memory=SIZE\n"
 	"  -i, --interpret=CODE\n"
 	"  -x, --extended\n"
+	"  -X, --extended-2\n"
 	"  -h, --help\n"
 	"  -v, --version\n"
 	"Basic Commands:\n"
@@ -75,32 +83,21 @@ void version(const char* program_name, const char* program_version) {
 	exit(EXIT_SUCCESS);
 }
 
-bool isinstruction(bool extended, char c) {
-	switch(c) {
-	case '>':
-	case '<':
-	case '+':
-	case '-':
-	case '.':
-	case ',':
-	case '[':
-	case ']':
-		return true;
-	}
+bool isinstruction(extended_t extended, char c) {
+	char   opcodes[] = "><+-.,[]@$!}{~^&|?)(*/=_%XxMmLl:0123456789ABCDEF#";
+	size_t opcodes_n = 8;
+	int    i;
 
-	if(extended)
-		switch(c) {
-		case '@':
-		case '$':
-		case '!':
-		case '}':
-		case '{':
-		case '~':
-		case '^':
-		case '&':
-		case '|':
+	if(extended & EXTENDED_TYPE_1)
+		opcodes_n += 9;
+	if(extended & EXTENDED_TYPE_2)
+		opcodes_n += 8;
+	if(extended & EXTENDED_TYPE_3)
+		opcodes_n += 24;
+
+	for(i = 0; i < opcodes_n; ++i)
+		if(c == opcodes[i])
 			return true;
-		}
 
 	return false;
 }
@@ -108,7 +105,7 @@ bool isinstruction(bool extended, char c) {
 char* readcode(bool extended, char *filename, size_t *code_size) {
 	FILE *fp;
 	char *code;
-	int c, i;
+	int   c, i;
 
 	if((fp = fopen(filename, "rb")) == NULL){
 		perror(filename);
@@ -136,7 +133,7 @@ char* readcode(bool extended, char *filename, size_t *code_size) {
 	return code;
 }
 
-int interpret(bool extended, char *code, size_t code_size, size_t tape_size) {
+int interpret(extended_t extended, char *code, size_t code_size, size_t tape_size) {
 	uint8_t *tape, storage;
 	int p, ip;
 
@@ -214,39 +211,39 @@ int interpret(bool extended, char *code, size_t code_size, size_t tape_size) {
 			}
 			break;
 		case '@':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				exit(EXIT_SUCCESS);
 			break;
 		case '$':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				storage = tape[p];
 			break;
 		case '!':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				tape[p] = storage;
 			break;
 		case '}':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				tape[p]	>>= 1;
 			break;
 		case '{':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				tape[p]	<<= 1;
 			break;
 		case '~':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				tape[p] = ~tape[p];
 			break;
 		case '^':
-			if(extended) 
+			if(extended & EXTENDED_TYPE_1)
 				tape[p] ^= storage;
 			break;
 		case '&':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				tape[p] &= storage;
 			break;
 		case '|':
-			if(extended)
+			if(extended & EXTENDED_TYPE_1)
 				tape[p] |= storage;
 			break;
 		}
@@ -259,19 +256,20 @@ int interpret(bool extended, char *code, size_t code_size, size_t tape_size) {
 
 int main(int argc, char *argv[]) {
 	int c;
-	bool extended                  = false;
+	extended_t extended            = EXTENDED_TYPE_0;
 	char *code                     = (char*)NULL;
 	size_t code_size, tape_size    = 0;
 	const struct option longopts[] = {
 	{"interpret",  required_argument, NULL, 'i'},
 	{"memory",     required_argument, NULL, 'm'},
 	{"extended",   no_argument,       NULL, 'x'},
+	{"extended-2", no_argument,       NULL, 'X'},
 	{"help",       no_argument,       NULL, 'h'},
 	{"version",    no_argument,       NULL, 'v'},
 	{NULL, 0, NULL, 0}
 	};
 
-	while ((c = getopt_long(argc, argv, "i:m:xhv", longopts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "i:m:xXhv", longopts, NULL)) != -1) {
 		switch (c) {
 		case 'i':
 			interpret(extended, optarg, strlen(optarg), tape_size ? tape_size : DEFAULT_TAPE_SIZE);
@@ -280,7 +278,10 @@ int main(int argc, char *argv[]) {
 			tape_size = strtoul(optarg, NULL, 0);
 			break;
 		case 'x':
-			extended = true;
+			extended = EXTENDED_TYPE_1;
+			break;
+		case 'X':
+			extended = EXTENDED_TYPE_1|EXTENDED_TYPE_2;
 			break;
 		case 'h':
 			usage(EXIT_SUCCESS);
