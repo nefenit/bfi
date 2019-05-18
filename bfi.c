@@ -1,4 +1,4 @@
-/* bfi.c - Brainfuck interpreter
+/* bfi.c - Extended Brainfuck interpreter
  * (c) Copyright 2019 Bartosz Mierzynski
  * Written in ANSI C (C89)
  */
@@ -8,6 +8,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef __cplusplus
+  #if __STDC_VERSION__ >= 199901L
+    #include <stdbool.h>
+  #else
+    #define bool                           int
+    #define true                           1 /* non-zero */
+    #define false                          0
+    #define __bool_true_false_are_defined  1 
+  #endif
+#endif
 
 #define PROGRAM_NAME         "bfi"
 #define PROGRAM_VERSION      "1.0"
@@ -20,15 +30,30 @@ enum {DEFAULT_TAPE_SIZE = 30000};
 
 void usage(int status) {
 	printf(
-	"usage: %s [-m SIZE] [-i CODE]... FILE...\n"
+	"usage: %s [-x] [-m SIZE] [-i CODE]... FILE...\n"
 	"       %s --help\n"
 	"       %s --version\n"
-	"Brainfuck interpreter\n"
+	"Extended Brainfuck interpreter\n"
 	"Options:\n"
 	"  -m, --memory=SIZE\n"
 	"  -i, --interpret=CODE\n"
+	"  -x, --extended\n"
 	"  -h, --help\n"
-	"  -v, --version\n",
+	"  -v, --version\n"
+	"Basic Commands:\n"
+	"  >  increments data pointer\n"
+	"     (to point to the next cell to he right)\n"
+	"  <  decrement the pointer\n"
+	"     (to point to the next cell to the left)\n"
+	"  +  increment the byte at the data pointer\n"
+	"  -   decrement the byte at the data pointer\n"
+	"  .  output byte at the data pointer\n"
+	"  ,  accept one byte of input, storing its value at the data pointer\n"
+	"  [  if the byte at the pointer is zero\n"
+	"     jump forward to the command after the corresponding ]\n"
+	"  ]  if the byte at the pointer is nonzero\n"
+	"     jump back to the command after the corresponding [ \n"
+	,
 	PROGRAM_NAME,
 	PROGRAM_NAME,
 	PROGRAM_NAME);
@@ -50,7 +75,7 @@ void version(const char* program_name, const char* program_version) {
 	exit(EXIT_SUCCESS);
 }
 
-int isinstruction(char c) {
+bool isinstruction(bool extended, char c) {
 	switch(c) {
 	case '>':
 	case '<':
@@ -60,12 +85,27 @@ int isinstruction(char c) {
 	case ',':
 	case '[':
 	case ']':
-		return 1;
+		return true;
 	}
-	return 0;
+
+	if(extended)
+		switch(c) {
+		case '@':
+		case '$':
+		case '!':
+		case '}':
+		case '{':
+		case '~':
+		case '^':
+		case '&':
+		case '|':
+			return true;
+		}
+
+	return false;
 }
 
-char* readcode(char *filename, size_t *code_size) {
+char* readcode(bool extended, char *filename, size_t *code_size) {
 	FILE *fp;
 	char *code;
 	int c, i;
@@ -78,7 +118,7 @@ char* readcode(char *filename, size_t *code_size) {
 	*code_size = 0;
 
 	while((c = getc(fp)) != EOF)
-		if(isinstruction(c))
+		if(isinstruction(extended, c))
 			++*code_size;
 
 	code = (char*)malloc(sizeof(char) * *code_size);
@@ -88,7 +128,7 @@ char* readcode(char *filename, size_t *code_size) {
 	i = 0;
 
 	while((c = getc(fp)) != EOF)
-		if(isinstruction(c))
+		if(isinstruction(extended, c))
 			code[i++] = (char)c;
 
 	fclose(fp);
@@ -96,8 +136,8 @@ char* readcode(char *filename, size_t *code_size) {
 	return code;
 }
 
-int interpret(char *code, size_t code_size, size_t tape_size) {
-	uint8_t *tape;
+int interpret(bool extended, char *code, size_t code_size, size_t tape_size) {
+	uint8_t *tape, storage;
 	int p, ip;
 
 	if(!(tape = (uint8_t*)calloc(tape_size, sizeof(uint8_t)))){
@@ -105,7 +145,7 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 		exit(EXIT_FAILURE);	
 	}
 
-	for(ip = p = 0; ip < code_size; ++ip) {
+	for(ip = p = storage = 0; ip < code_size; ++ip) {
 		switch(code[ip]) {
 		case '>':
 			++p;
@@ -173,6 +213,42 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 				}
 			}
 			break;
+		case '@':
+			if(extended)
+				exit(EXIT_SUCCESS);
+			break;
+		case '$':
+			if(extended)
+				storage = tape[p];
+			break;
+		case '!':
+			if(extended)
+				tape[p] = storage;
+			break;
+		case '}':
+			if(extended)
+				tape[p]	>>= 1;
+			break;
+		case '{':
+			if(extended)
+				tape[p]	<<= 1;
+			break;
+		case '~':
+			if(extended)
+				tape[p] = ~tape[p];
+			break;
+		case '^':
+			if(extended) 
+				tape[p] ^= storage;
+			break;
+		case '&':
+			if(extended)
+				tape[p] &= storage;
+			break;
+		case '|':
+			if(extended)
+				tape[p] |= storage;
+			break;
 		}
 	}
 
@@ -183,23 +259,28 @@ int interpret(char *code, size_t code_size, size_t tape_size) {
 
 int main(int argc, char *argv[]) {
 	int c;
-	char *code = NULL;
-	size_t code_size, tape_size = 0;
+	bool extended                  = false;
+	char *code                     = (char*)NULL;
+	size_t code_size, tape_size    = 0;
 	const struct option longopts[] = {
 	{"interpret",  required_argument, NULL, 'i'},
 	{"memory",     required_argument, NULL, 'm'},
+	{"extended",   no_argument,       NULL, 'x'},
 	{"help",       no_argument,       NULL, 'h'},
 	{"version",    no_argument,       NULL, 'v'},
 	{NULL, 0, NULL, 0}
 	};
 
-	while ((c = getopt_long(argc, argv, "i:m:hv", longopts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "i:m:xhv", longopts, NULL)) != -1) {
 		switch (c) {
 		case 'i':
-			interpret(optarg, strlen(optarg), tape_size ? tape_size : DEFAULT_TAPE_SIZE);
+			interpret(extended, optarg, strlen(optarg), tape_size ? tape_size : DEFAULT_TAPE_SIZE);
 			break;
 		case 'm':
 			tape_size = strtoul(optarg, NULL, 0);
+			break;
+		case 'x':
+			extended = true;
 			break;
 		case 'h':
 			usage(EXIT_SUCCESS);
@@ -217,13 +298,12 @@ int main(int argc, char *argv[]) {
 	argv += optind;
 
 	for(;argc; --argc, ++argv){	
-		if(!(code = readcode(*argv, &code_size)))
+		if(!(code = readcode(extended, *argv, &code_size)))
 			return EXIT_FAILURE;
-		interpret(code, code_size, tape_size ? tape_size : DEFAULT_TAPE_SIZE);
+		interpret(extended, code, code_size, tape_size ? tape_size : DEFAULT_TAPE_SIZE);
 	}
 
 	free(code);
 
 	return EXIT_SUCCESS;
 }
-
