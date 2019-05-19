@@ -40,7 +40,10 @@ void usage(int status) {
 	"usage: %s [-x|-X] [-m SIZE] [-i CODE]... FILE...\n"
 	"       %s --help\n"
 	"       %s --version\n"
-	"Extended Brainfuck interpreter\n"
+	"Extended Brainfuck interpreter\n%s%s%s",
+	PROGRAM_NAME,
+	PROGRAM_NAME,
+	PROGRAM_NAME,
 	"Options:\n"
 	"  -m, --memory=SIZE\n"
 	"  -i, --interpret=CODE\n"
@@ -48,6 +51,7 @@ void usage(int status) {
 	"  -X, --extended-2\n"
 	"  -h, --help\n"
 	"  -v, --version\n"
+	,
 	"Basic Commands:\n"
 	"  >  increments data pointer\n"
 	"     (to point to the next cell to he right)\n"
@@ -55,16 +59,14 @@ void usage(int status) {
 	"     (to point to the next cell to the left)\n"
 	"  +  increment the byte at the data pointer\n"
 	"  -   decrement the byte at the data pointer\n"
+	,
 	"  .  output byte at the data pointer\n"
 	"  ,  accept one byte of input, storing its value at the data pointer\n"
 	"  [  if the byte at the pointer is zero\n"
 	"     jump forward to the command after the corresponding ]\n"
-	"  ]  if the byte at the pointer is nonzero\n"
+	"  ]  if the byte at the pointer is non-zero\n"
 	"     jump back to the command after the corresponding [ \n"
-	,
-	PROGRAM_NAME,
-	PROGRAM_NAME,
-	PROGRAM_NAME);
+	);
 	exit(status);
 }
 
@@ -112,21 +114,29 @@ char* readcode(bool extended, char *filename, size_t *code_size) {
 		return NULL;
 	}
 
-	*code_size = 0;
-
-	while((c = getc(fp)) != EOF)
-		if(isinstruction(extended, c))
-			++*code_size;
-
+	if(extended & EXTENDED_TYPE_2){
+		fseek(fp, 0l, SEEK_END);
+		*code_size = ftell(fp);
+	} else {
+		*code_size = 0;
+		while((c = getc(fp)) != EOF)
+			if(isinstruction(extended, c))
+				++*code_size;
+	}
+	
 	code = (char*)malloc(sizeof(char) * *code_size);
 
-	fseek(fp, 0l, SEEK_SET);
+	rewind(fp);
 
 	i = 0;
 
-	while((c = getc(fp)) != EOF)
-		if(isinstruction(extended, c))
-			code[i++] = (char)c;
+	if(extended & EXTENDED_TYPE_2)
+		while((c = getc(fp)) != EOF)
+				code[i++] = (char)c;
+	else
+		while((c = getc(fp)) != EOF)
+			if(isinstruction(extended, c))
+				code[i++] = (char)c;
 
 	fclose(fp);
 
@@ -135,59 +145,109 @@ char* readcode(bool extended, char *filename, size_t *code_size) {
 
 int interpret(extended_t extended, char *code, size_t code_size, size_t tape_size) {
 	uint8_t *tape, storage;
-	int p, ip;
+	uint16_t tmp;
+	int      dp, ip;
 
 	if(!(tape = (uint8_t*)calloc(tape_size, sizeof(uint8_t)))){
 		perror("calloc");
 		exit(EXIT_FAILURE);	
 	}
 
-	for(ip = p = storage = 0; ip < code_size; ++ip) {
-		switch(code[ip]) {
+	/* Memory Layout */
+	if(extended & EXTENDED_TYPE_2) {
+		/* Extended Type 2 onwards
+		 *
+		 * tape:
+		 * 0         ip      dp
+		 * +-----------------------+
+		 * | storage | code | data |
+		 * +-----------------------+
+		 * */
+		memcpy   (tape + 1, code, code_size);
+		*tape   = 0;
+		ip      = 1;
+		{
+			int i;
+			
+			for(dp = 0, i = code_size; i > 0; --i) {
+				if(tape[i] == '@')
+					dp = i+1;
+			}
+			if(dp == 0)
+				dp = code_size+1;
+		}
+	} else {
+		/* Default
+		 *
+		 * storage:
+		 * +---------+
+		 * | storage |
+		 * +---------+
+		 *
+		 * code:
+		 * ip
+		 * +------+
+		 * | code |
+		 * +------+
+		 * 
+		 * tape:
+		 * dp
+		 * +------+
+		 * | tape |
+		 * +------+
+		 * */
+		ip = dp = storage = 0;
+	}
+
+	for(; ip < (extended & EXTENDED_TYPE_2 ? tape_size : code_size); ++ip) {
+		switch((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip])) {
+		case '\0':
+			exit(EXIT_SUCCESS);
+			break;
 		case '>':
-			++p;
-			if(p == tape_size)
-				p = 0;
+			++dp;
+			if(dp == tape_size)
+				dp = 0;
 			break;
 		case '<':
-			--p;
-			if(p == -1)
-				p = tape_size - 1;
+			--dp;
+			if(dp == -1)
+				dp = tape_size - 1;
 			break;
 		case '+':
-			if(tape[p] == 255)
-				tape[p] = 0;
+			if(tape[dp] == 255)
+				tape[dp] = 0;
 			else
-				++tape[p];
+				++tape[dp];
 			break;
 		case '-':
-			if(tape[p] == 0)
-				tape[p] = 255;
+			if(tape[dp] == 0)
+				tape[dp] = 255;
 			else
-				--tape[p];
+				--tape[dp];
 			break;
 		case '.':
-			putchar((int)tape[p]);
+			putchar((int)tape[dp]);
 			break;
 		case ',':
 			{
 				int c = getchar();
 				
-				tape[p] = (uint8_t)(c == EOF ? 0 : c);
+				tape[dp] = (uint8_t)(c == EOF ? 0 : c);
 			}
 			break;
 		case '[':
 			{
 				int openbrackets;
 				
-				if(tape[p] == 0) {
+				if(tape[dp] == 0) {
 					openbrackets = 0;
-					for(++ip; ip < code_size; ++ip) {
+					for(++ip; ip < (extended & EXTENDED_TYPE_2 ? tape_size : code_size); ++ip) {
 						if(code[ip] == ']' && openbrackets == 0)
 							break;
-						else if(code[ip] == '[')
+						else if((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip]) == '[')
 							++openbrackets;
-						else if(code[ip] == ']')
+						else if((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip]) == ']')
 							--openbrackets;
 					}
 				}
@@ -197,14 +257,14 @@ int interpret(extended_t extended, char *code, size_t code_size, size_t tape_siz
 			{
 				int closedbrackets;
 				
-				if(tape[p] != 0) {
+				if(tape[dp]) {
 					closedbrackets = 0;
 					for(--ip; ip >= 0; --ip) {
-						if(code[ip] == '[' && closedbrackets == 0)
+						if((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip]) == '[' && closedbrackets == 0)
 							break;
-						else if(code[ip] == ']')
+						else if((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip]) == ']')
 							++closedbrackets;
-						else if(code[ip] == '[')
+						else if((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip]) == '[')
 							--closedbrackets;
 					}
 				}
@@ -215,36 +275,132 @@ int interpret(extended_t extended, char *code, size_t code_size, size_t tape_siz
 				exit(EXIT_SUCCESS);
 			break;
 		case '$':
-			if(extended & EXTENDED_TYPE_1)
-				storage = tape[p];
+			if(extended & EXTENDED_TYPE_1) {
+				if(extended & EXTENDED_TYPE_2)
+					*tape   = tape[dp];
+				else
+					storage = tape[dp];
+			}
 			break;
 		case '!':
-			if(extended & EXTENDED_TYPE_1)
-				tape[p] = storage;
+			if(extended & EXTENDED_TYPE_1) {
+				if(extended & EXTENDED_TYPE_2)
+					tape[dp] = *tape;
+				else
+					tape[dp] = storage;
+			}
 			break;
 		case '}':
 			if(extended & EXTENDED_TYPE_1)
-				tape[p]	>>= 1;
+				tape[dp] >>= 1;
 			break;
 		case '{':
 			if(extended & EXTENDED_TYPE_1)
-				tape[p]	<<= 1;
+				tape[dp] <<= 1;
 			break;
 		case '~':
 			if(extended & EXTENDED_TYPE_1)
-				tape[p] = ~tape[p];
+				tape[dp] = ~tape[dp];
 			break;
 		case '^':
-			if(extended & EXTENDED_TYPE_1)
-				tape[p] ^= storage;
+			if(extended & EXTENDED_TYPE_1) {
+				if(extended & EXTENDED_TYPE_2)
+					tape[dp] ^= *tape;
+				else
+					tape[dp] ^= storage;
+			}
 			break;
 		case '&':
-			if(extended & EXTENDED_TYPE_1)
-				tape[p] &= storage;
+			if(extended & EXTENDED_TYPE_1) {
+				if(extended & EXTENDED_TYPE_2)
+					tape[dp] &= *tape;
+				else
+					tape[dp] &= storage;
+			}
 			break;
 		case '|':
-			if(extended & EXTENDED_TYPE_1)
-				tape[p] |= storage;
+			if(extended & EXTENDED_TYPE_1) {
+				if(extended & EXTENDED_TYPE_2)
+					tape[dp] |= *tape;
+				else 
+					tape[dp] |= storage;
+			}
+			break;
+		case '?':
+			if(extended & EXTENDED_TYPE_2)
+				ip = dp;
+			break;
+		case ')':
+			{
+				int i;
+
+				if(extended & EXTENDED_TYPE_2) {
+					if(!(tape = (uint8_t*)realloc(tape, sizeof(uint8_t) * (tape_size+1)))){
+						perror("realloc");
+						exit(EXIT_FAILURE);
+					}
+					++tape_size;
+					for(i = tape_size; i > 0; --i){
+						if(i == dp) {
+							tape[i] = tape[i-1];
+							tape[i] = (uint8_t)0;	
+						}
+						if(i > dp)
+							tape[i] = tape[i-1];
+					}
+				}
+			}
+			break;
+		case '(':
+			{
+				int i;
+
+				if(extended & EXTENDED_TYPE_2) {
+					for(i = dp; i < tape_size-2; ++i){
+							tape[i] = tape[i+1];
+					}
+					if(!(tape = (uint8_t*)realloc(tape, sizeof(uint8_t) * (tape_size-1)))){
+						perror("realloc");
+						exit(EXIT_FAILURE);
+					}
+					--tape_size;
+				}
+			}
+			break;
+		case '*':
+			if(extended & EXTENDED_TYPE_2) {
+				tmp = tape[dp] * *tape;
+				tape[dp] = tmp & 0xFF;
+			}
+			break;
+		case '/':
+			if(extended & EXTENDED_TYPE_2) {
+				if(*tape) {
+					tmp = tape[dp] / *tape;
+					tape[dp] = tmp & 0xFF;
+				} else {
+					fprintf(stderr, "%s: Division by 0\n", PROGRAM_NAME);
+					exit(EXIT_FAILURE);
+				}
+			}
+			break;
+		case '=':
+			if(extended & EXTENDED_TYPE_2) {
+				tmp = tape[dp] + *tape;
+				tape[dp] = tmp & 0xFF;
+			}
+			break;
+		case '_':
+			if(extended & EXTENDED_TYPE_2) {
+				tmp = tape[dp] - *tape;
+				tape[dp] = tmp & 0xFF;
+			}
+			break;
+		case '%':
+			if(extended & EXTENDED_TYPE_2) {
+				tmp = tape[dp] % *tape;
+				tape[dp] = tmp & 0xFF;
+			}
 			break;
 		}
 	}
