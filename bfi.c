@@ -58,7 +58,7 @@ void usage(int status) {
 	"  <  decrement the pointer\n"
 	"     (to point to the next cell to the left)\n"
 	"  +  increment the byte at the data pointer\n"
-	"  -   decrement the byte at the data pointer\n"
+	"  -  decrement the byte at the data pointer\n"
 	,
 	"  .  output byte at the data pointer\n"
 	"  ,  accept one byte of input, storing its value at the data pointer\n"
