@@ -418,6 +418,7 @@ int main(int argc, char *argv[]) {
 	extended_t extended            = EXTENDED_TYPE_0;
 	char *code                     = (char*)NULL;
 	size_t code_size, tape_size    = 0;
+	const char optstring[]         = "i:m:xXhv";
 	const struct option longopts[] = {
 	{"interpret",  required_argument, NULL, 'i'},
 	{"memory",     required_argument, NULL, 'm'},
@@ -428,7 +429,7 @@ int main(int argc, char *argv[]) {
 	{NULL, 0, NULL, 0}
 	};
 
-	while ((c = getopt_long(argc, argv, "i:m:xXhv", longopts, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) {
 		switch (c) {
 		case 'i':
 			interpret(extended, optarg, strlen(optarg), tape_size ? tape_size : DEFAULT_TAPE_SIZE);
