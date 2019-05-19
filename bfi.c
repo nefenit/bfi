@@ -202,6 +202,8 @@ int interpret(extended_t extended, char *code, size_t code_size, size_t tape_siz
 	for(; ip < (extended & EXTENDED_TYPE_2 ? tape_size : code_size); ++ip) {
 		switch((extended & EXTENDED_TYPE_2 ? tape[ip] : code[ip])) {
 		case '\0':
+			free(tape);
+			free(code);
 			exit(EXIT_SUCCESS);
 			break;
 		case '>':
@@ -271,8 +273,11 @@ int interpret(extended_t extended, char *code, size_t code_size, size_t tape_siz
 			}
 			break;
 		case '@':
-			if(extended & EXTENDED_TYPE_1)
+			if(extended & EXTENDED_TYPE_1) {
+				free(tape);
+				free(code);
 				exit(EXIT_SUCCESS);
+			}
 			break;
 		case '$':
 			if(extended & EXTENDED_TYPE_1) {
@@ -406,6 +411,7 @@ int interpret(extended_t extended, char *code, size_t code_size, size_t tape_siz
 	}
 
 	free(tape);
+	free(code);
 
 	return 0;
 }
@@ -459,8 +465,5 @@ int main(int argc, char *argv[]) {
 			return EXIT_FAILURE;
 		interpret(extended, code, code_size, tape_size ? tape_size : DEFAULT_TAPE_SIZE);
 	}
-
-	free(code);
-
 	return EXIT_SUCCESS;
 }
