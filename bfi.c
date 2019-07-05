@@ -12,12 +12,14 @@
   #if __STDC_VERSION__ >= 199901L
     #include <stdbool.h>
   #else
-    #define bool                           int
-    #define true                           1 /* non-zero */
-    #define false                          0
-    #define __bool_true_false_are_defined  1 
-  #endif
-#endif
+    #ifndef __bool_true_false_are_defined
+      #define bool                           int
+      #define true                           1 /* non-zero */
+      #define false                          0
+      #define __bool_true_false_are_defined  1 
+    #endif /*__bool_true_false_are_defined */
+  #endif /* __STDC_VERSION__ >= 199901L */
+#endif /* __cplusplus */
 
 #define PROGRAM_NAME         "bfi"
 #define PROGRAM_VERSION      "1.0"
